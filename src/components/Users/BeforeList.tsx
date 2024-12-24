@@ -3,20 +3,27 @@ import React from 'react'
 import Link from 'next/link'
 import { headers } from 'next/headers'
 
-const BeforeList: React.FC<{ payload: Payload }> = async ({ payload, ...rest }) => {
-  // get drizzle db
-  const drizzleDb = payload.db.drizzle
-  // can get users like this...
-  // rememeber to run `npx payload generate:db-schema
-  const drizzleResult = await drizzleDb.query.users.findMany()
+// Method 1: Using Drizzle directly
+async function getDrizzleUsers(payload: Payload) {
+  const users = await payload.db.drizzle.query.users.findMany()
+  return groupUsersByTeam(users)
+}
 
-  // Get current team filter from URL
-  const headersList = await headers()
-  const fullUrl = headersList.get('referer') || ''
-  const currentTeam = new URLSearchParams(fullUrl.split('?')[1] || '').get('where[team][equals]')
+// Method 2: Using Payload's local API
+async function getPayloadUsers(payload: Payload) {
+  const result = await payload.find({
+    collection: 'users',
+    limit: 1000,
+    depth: 0,
+  })
+  return groupUsersByTeam(result.docs)
+}
 
-  // Group users by team
-  const usersByTeam = drizzleResult.reduce(
+// Helper function to group users by team
+// This is a generic function that can be used with any type of user object
+// as long as it has a team property
+function groupUsersByTeam<T extends { team?: string | null }>(users: T[]) {
+  const usersByTeam = users.reduce(
     (acc, user) => {
       const team = user.team || 'No Team'
       if (!acc[team]) {
@@ -25,8 +32,23 @@ const BeforeList: React.FC<{ payload: Payload }> = async ({ payload, ...rest }) 
       acc[team].push(user)
       return acc
     },
-    {} as Record<string, (typeof drizzleResult)[number][]>,
+    {} as Record<string, T[]>,
   )
+
+  return {
+    users,
+    usersByTeam,
+  }
+}
+
+const BeforeList: React.FC<{ payload: Payload }> = async ({ payload, ...rest }) => {
+  // Using Drizzle in this example, but you can switch to getPayloadUsers
+  const { users, usersByTeam } = await getDrizzleUsers(payload)
+
+  // Get current team filter from URL
+  const headersList = await headers()
+  const fullUrl = headersList.get('referer') || ''
+  const currentTeam = new URLSearchParams(fullUrl.split('?')[1] || '').get('where[team][equals]')
 
   const buttonStyle = {
     padding: '8px 16px',
@@ -57,7 +79,7 @@ const BeforeList: React.FC<{ payload: Payload }> = async ({ payload, ...rest }) 
             fontWeight: !currentTeam ? 'bold' : 'normal',
           }}
         >
-          All ({drizzleResult.length})
+          All ({users.length})
         </Link>
         {Object.entries(usersByTeam).map(([team, users]) => (
           <Link
