@@ -4,6 +4,9 @@ A Payload CMS application demonstrating user management with team filtering capa
 
 Also demonstrates how to access the database directly using Drizzle ORM.
 
+## VIDEO
+- [youtu.be/W_Da3Sp4Lgw](https://youtu.be/W_Da3Sp4Lgw)
+
 ## Features
 
 - **Database**: SQLite with Drizzle ORM
